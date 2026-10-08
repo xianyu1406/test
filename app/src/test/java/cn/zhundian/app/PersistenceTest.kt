@@ -68,6 +68,27 @@ class PersistenceTest {
         assertTrue(restored.callMessage!!.contains("不会自动补拨"))
     }
 
+    @Test fun staleNotificationCannotAbortAnotherReminderInstance() = runBlocking {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val session = SessionEngine.create("new-reminder", Intensity.NORMAL, now)
+        val occurrence = cn.zhundian.core.schedule.Occurrence("new-reminder", "schedule", "test", "下一节点",
+            1, 2, 1, "Asia/Shanghai", "", "", false, cn.zhundian.core.schedule.ReminderIntensity.NORMAL, emptyMap())
+        app.database.dao().putSession(SessionRow(session.id,
+            AppJson.encodeToString(cn.zhundian.core.schedule.Occurrence.serializer(), occurrence),
+            AppJson.encodeToString(Session.serializer(), session),
+            AppJson.encodeToString(UiSettings.serializer(), UiSettings()),
+            android.provider.Settings.Global.getInt(app.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1),
+            System.currentTimeMillis()))
+        app.coordinator.rebuild()
+        var silenced = false
+        app.coordinator.immediateSilence = { silenced = true }
+        app.coordinator.action(cn.zhundian.app.ui.SessionActions.EMERGENCY_STOP, expectedSessionId = "finished-reminder")
+        assertFalse(silenced)
+        val current = AppJson.decodeFromString<Session>(app.database.dao().activeSession()!!.sessionJson)
+        assertEquals("new-reminder", current.id)
+        assertEquals(Stage.RINGING, current.stage)
+    }
+
     @Test fun invalidImportedParametersDoNotPartiallyChangeDataOrConsent() = runBlocking {
         app.settings.save(UiSettings(contactEnabled = true, contactConfirmed = true, contactNumber = "5550100"))
         val invalid = Schedule(title = "无效窗口", startLocal = "2030-01-01T06:00", endLocal = "2030-01-01T07:00", reminderParameters = mapOf("mediumWindows" to 1))

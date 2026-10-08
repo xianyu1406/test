@@ -31,7 +31,8 @@ class ReminderCoordinator(private val app: ZhundianApplication) {
     private val stopRequests = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
     var immediateSilence: (() -> Unit)? = null
     fun isStopRequested(id: String) = id in stopRequests
-    fun requestStop(action: String) {
+    fun requestStop(action: String, expectedSessionId: String? = null) {
+        if (expectedSessionId != null && mutableActive.value?.id != expectedSessionId) return
         if (action in setOf(SessionActions.EMERGENCY_STOP, SessionActions.CANCEL_OCCURRENCE, SessionActions.COMPLETE_SCHEDULE)) {
             mutableActive.value?.id?.let { stopRequests.add(it) }
             immediateSilence?.invoke()
@@ -273,11 +274,12 @@ class ReminderCoordinator(private val app: ZhundianApplication) {
         report.fragment?.let { f -> s = SessionEngine.reduce(s, Event.Motion(now(), f.id, f.startElapsedMs, f.endElapsedMs)) }
         persistLocked(s)
     }
-    suspend fun action(action: String, number: Int? = null) {
-        requestStop(action)
+    suspend fun action(action: String, number: Int? = null, expectedSessionId: String? = null) {
+        requestStop(action, expectedSessionId)
         mutex.withLock {
         loadLocked()
         val row = current ?: return@withLock
+        if (expectedSessionId != null && row.id != expectedSessionId) return@withLock
         val s = decode(row)
         val time = now()
         val event: Event? = when (action) {

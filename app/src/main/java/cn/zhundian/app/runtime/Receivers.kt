@@ -13,7 +13,7 @@ class AlarmReceiver : BroadcastReceiver() {
         app.applicationScope.launch {
             try {
                 val action = intent.getStringExtra("sessionAction")
-                if (action != null) app.coordinator.action(action)
+                if (action != null) intent.getStringExtra("sessionId")?.let { app.coordinator.action(action, expectedSessionId = it) }
                 else intent.getStringExtra("occurrenceId")?.let { app.coordinator.alarm(it) }
                 ReminderService.start(context)
             } finally { pending.finish() }

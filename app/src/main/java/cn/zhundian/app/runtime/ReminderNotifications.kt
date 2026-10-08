@@ -37,15 +37,17 @@ object ReminderNotifications {
             .setCategory(NotificationCompat.CATEGORY_ALARM).setPriority(NotificationCompat.PRIORITY_MAX)
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .addAction(0, context.getString(R.string.runtime_open), open)
-            .addAction(0, context.getString(R.string.runtime_abort), action(context, SessionActions.EMERGENCY_STOP))
-        if (session?.intensity == Intensity.NORMAL) builder.addAction(0, context.getString(R.string.runtime_snooze), action(context, SessionActions.SNOOZE))
+            .addAction(0, context.getString(R.string.runtime_abort), action(context, SessionActions.EMERGENCY_STOP, session?.id))
+        if (session?.intensity == Intensity.NORMAL) builder.addAction(0, context.getString(R.string.runtime_snooze), action(context, SessionActions.SNOOZE, session?.id))
         val manager = context.getSystemService(NotificationManager::class.java)
         if ((session == null || session.stage == cn.zhundian.core.session.Stage.RINGING || session.stage == cn.zhundian.core.session.Stage.TECHNICAL_FAULT) &&
             (Build.VERSION.SDK_INT < 34 || manager.canUseFullScreenIntent())) builder.setFullScreenIntent(open, true)
         return builder.build()
     }
-    private fun action(context: Context, action: String) = PendingIntent.getBroadcast(context, action.hashCode(),
-        Intent(context, AlarmReceiver::class.java).setAction("cn.zhundian.ACTION").putExtra("sessionAction", action),
+    private fun action(context: Context, action: String, sessionId: String?) = PendingIntent.getBroadcast(context, (action + sessionId).hashCode(),
+        Intent(context, AlarmReceiver::class.java).setAction("cn.zhundian.ACTION")
+            .setData(android.net.Uri.Builder().scheme("zhundian").authority("session-action").appendPath(sessionId ?: "preparing").appendPath(action).build())
+            .putExtra("sessionAction", action).putExtra("sessionId", sessionId),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     fun blocked(context: Context, reason: String) {
         val open = PendingIntent.getActivity(context, 2, Intent(context, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)

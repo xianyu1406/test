@@ -172,26 +172,27 @@ class AppController(private val activity: ComponentActivity) : UiController {
     } catch (e: Exception) { UiPreview(error = e.message?.take(180) ?: "日期、重复规则或参数无效") }
 
     override fun sessionAction(action: String, number: Int?) {
-        coordinator.requestStop(action)
+        val expectedId = state.value.session?.id ?: return
+        coordinator.requestStop(action, expectedId)
         runAction(showSuccess = false) {
             if (action == SessionActions.MANUAL_DIAL) {
-                val row = dao.activeSession() ?: error("当前没有活动提醒")
+                val row = dao.activeSession()?.takeIf { it.id == expectedId } ?: error("该提醒已结束，请查看当前提醒")
                 val session = AppJson.decodeFromString<Session>(row.sessionJson)
                 require(!session.stage.terminal && session.stage != Stage.CALL_PAUSED) { "当前正在通话暂停中，请先结束通话后继续检查" }
                 val settings = AppJson.decodeFromString<UiSettings>(row.settingsJson)
                 val dial = AndroidCallGateway.manualDialIntent(settings.contactNumber) ?: error("没有可用的联系人号码")
                 require(AndroidCallGateway(app).preflight(settings.contactNumber).code != CallEligibilityCode.ALREADY_IN_CALL) { "已有通话，等待结束后再操作" }
-                coordinator.action(action)
+                coordinator.action(action, expectedSessionId = expectedId)
                 try {
                     activity.startActivity(dial)
                     coordinator.log("已打开本机拨号界面；等待用户拨打，未记录呼叫提交或接通")
                 } catch (e: Exception) {
-                    coordinator.action(SessionActions.RESUME_AFTER_CALL)
+                    coordinator.action(SessionActions.RESUME_AFTER_CALL, expectedSessionId = expectedId)
                     throw IllegalStateException("设备无法打开拨号界面；本地检查已恢复", e)
                 }
                 "等待用户在拨号界面确认；返回后选择通话后继续检查"
             } else {
-                coordinator.action(action, number)
+                coordinator.action(action, number, expectedId)
                 if (dao.activeSession() != null) ReminderService.start(app)
                 ""
             }
