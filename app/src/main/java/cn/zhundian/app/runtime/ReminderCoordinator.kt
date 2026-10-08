@@ -59,8 +59,14 @@ class ReminderCoordinator(private val app: ZhundianApplication) {
             if (row.bootCount != boot() || now() < s.lastEventMs) {
                 s = SessionEngine.reduce(s, Event.RestoreAfterReboot(now(), (wall() - row.savedAtWall).coerceAtLeast(0)))
                 log("设备重启：会话等待明确恢复，本次自动电话已关闭；没有补记步行或失败")
-            } else if (s.needsSensors) {
-                s = SessionEngine.reduce(s, Event.SensorStatus(now(), SensorQuality.UNAVAILABLE, "进程曾中断，请重新检测运动"))
+            } else {
+                if (s.stage == Stage.CALL_PAUSED && s.callStatus == CallStatus.CLAIMED_UNCERTAIN) {
+                    s = SessionEngine.reduce(s, Event.ResumeAfterCall(now())).copy(
+                        callMessage = "上次拨号提交结果不确定；恢复本地提醒，不会自动补拨")
+                    log("恢复不确定的电话提交记录：申请资格保持已领取，继续本地提醒")
+                }
+                if (s.needsSensors) s = SessionEngine.reduce(s,
+                    Event.SensorStatus(now(), SensorQuality.UNAVAILABLE, "进程曾中断，请重新检测运动"))
             }
             persistLocked(s)
         }

@@ -47,6 +47,27 @@ class PersistenceTest {
         assertTrue(result.contains("没有未来触发时间"))
     }
 
+    @Test fun uncertainCallRestoresLocalReminderWithoutRequestingAgain() = runBlocking {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val session = SessionEngine.create("uncertain", Intensity.STRONG, now, fallbackEnabled = true).copy(
+            stage = Stage.CALL_PAUSED, resumeStage = Stage.RINGING, callClaimed = true,
+            callStatus = CallStatus.CLAIMED_UNCERTAIN, fallbackTriggered = true)
+        val occurrence = cn.zhundian.core.schedule.Occurrence("uncertain", "uncertain", "test", "提交不确定",
+            1, 2, 1, "Asia/Shanghai", "", "", false, cn.zhundian.core.schedule.ReminderIntensity.STRONG, emptyMap())
+        app.database.dao().putSession(SessionRow("uncertain",
+            AppJson.encodeToString(cn.zhundian.core.schedule.Occurrence.serializer(), occurrence),
+            AppJson.encodeToString(Session.serializer(), session),
+            AppJson.encodeToString(UiSettings.serializer(), UiSettings()),
+            android.provider.Settings.Global.getInt(app.contentResolver, android.provider.Settings.Global.BOOT_COUNT, -1),
+            System.currentTimeMillis()))
+        app.coordinator.rebuild()
+        val restored = AppJson.decodeFromString<Session>(app.database.dao().activeSession()!!.sessionJson)
+        assertEquals(Stage.RINGING, restored.stage)
+        assertTrue(restored.callClaimed)
+        assertEquals(CallStatus.CLAIMED_UNCERTAIN, restored.callStatus)
+        assertTrue(restored.callMessage!!.contains("不会自动补拨"))
+    }
+
     @Test fun invalidImportedParametersDoNotPartiallyChangeDataOrConsent() = runBlocking {
         app.settings.save(UiSettings(contactEnabled = true, contactConfirmed = true, contactNumber = "5550100"))
         val invalid = Schedule(title = "无效窗口", startLocal = "2030-01-01T06:00", endLocal = "2030-01-01T07:00", reminderParameters = mapOf("mediumWindows" to 1))
