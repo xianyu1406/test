@@ -2,6 +2,8 @@
 
 原生 Android 离线日历与分档提醒，面向容易忘事、拖延或半醒关闹钟的人。Kotlin、Compose Material 3、Room、DataStore；无需账号、Firebase、Google Play Services 或联网权限。
 
+下载：[v0.1.0 测试版 APK](https://github.com/xianyu1406/test/releases/download/v0.1.0/zhundian-debug.apk) · [Release 与构建身份](https://github.com/xianyu1406/test/releases/tag/v0.1.0)。此附件由 GitHub Actions 重新构建并使用临时 debug 签名；与之前本地 APK 的签名不同。
+
 ## 已实现的工作流
 
 - 月/周日历、今日和日期详情；单次或每周多星期安排；重要标记与提醒强度独立。

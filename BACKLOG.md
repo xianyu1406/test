@@ -15,7 +15,7 @@
 
 ## 当前外部验证待办
 
-- GitHub API代理拒绝：在环境设置审阅保存网络域名api.github.com并发布后，读取真实Actions运行结果；不把已推送workflow当CI通过。
+- GitHub Actions测试、lint、APK构建和v0.1.0发布已经实际成功。后续发行使用新版本/标签与稳定签名，不覆盖现有Release APK。
 - API35软件模拟器启动失败：在支持KVM的runner手动运行可选instrumentation任务，或使用实体Android14+设备核查FGS/全屏权限；API28的4项测试已经通过。
 
 ## 可继续改进

@@ -61,9 +61,24 @@ scripts/run-device-tests.sh -PbuildSha=f51650eadeb6b51c1264f69aa61ae59836317862
 
 签名仅适用于当前环境；覆盖安装需要相同证书。云端临时debug签名可能变化，不能假定可直接覆盖此APK。完整构建身份见`artifacts/BUILD.txt`。
 
+## GitHub Actions与Release：已实际执行
+
+用户后续明确要求将APK放入Release。已发布[v0.1.0调试预览版](https://github.com/xianyu1406/test/releases/tag/v0.1.0)，仓库保持原可见性，未合并主分支。
+
+- 首次可读取的远端运行`37754169015`失败在`setup-java`：Temurin完整版本标识应为`21.0.9+10.0.LTS`。修复匹配字符串后，本地`actionlint 1.7.12`、YAML与shell检查通过。
+- 实际执行`gh workflow run android.yml --repo xianyu1406/test --ref feat/zhundian-android -f publish_release=true -f instrumentation=false`。
+- [运行37757411241](https://github.com/xianyu1406/test/actions/runs/37757411241)已完成，`debug`与`release`两个job均为`success`；测试、lint、APK构建、报告上传及Release发布步骤均通过。可选API35系统模拟器job明确为`skipped`，不计为通过。
+- 标签与构建提交：`ab9d7156cb63aa9ed0c5e11784cc6f14d1ee135c`。该提交仅修改CI和说明，应用功能源码与之前本地验证版本相同；BuildConfig中的构建SHA及debug签名不同。
+- 附件`zhundian-debug.apk`为20,035,970字节，SHA-256为`971c309bdd3e50c27e9db1794bd20100ef49a0a867105a56e40f855a84a6e059`。
+- Release debug证书SHA-256为`ac383ef4539d027b33bb274d4364c4192f05a65fcee34a252a330cca02dada2e`。附件`BUILD.txt`同时保存摘要和证书。
+- 已实际通过公开下载链接下载APK及BUILD.txt，摘要与GitHub资产`digest`一致；`apksigner verify --print-certs`通过，`aapt dump badging`确认包名、版本及SDK为`cn.zhundian.app / 0.1.0(1) / min26 / target36`。
+- 已在隔离API28软件模拟器卸载原测试签名版本、安装Release附件并撤销`CALL_PHONE`。冷启动的`am start -W`首次等待超时，UI dump两次返回空根节点；稍后确认Activity处于resumed状态，截图实际显示日历首页。[实际Release运行截图](evidence/release-v0.1.0-api28.png)。这是额外安装/可见界面检查，未宣称UI dump或重新执行4项instrumentation通过，也没有真实拨号。
+
+工作流默认push/PR只构建。只有指定仓库任务分支的手动`publish_release=true`才可发布；发布job具有单独的`contents:write`权限，下载同一次构建的artifact并校验摘要和提交，拒绝覆盖已发布的v0.1.0。下载副本与校验记录在`artifacts/release-v0.1.0/`。这是云端重新构建的附件，不是原本地APK的逐字节复制，不能直接假定可覆盖原本地安装。
+
 ## 未通过或未执行的边界
 
 - **API35系统模拟器未完成验证**：软件模拟首次启动与重试出现`SystemServer/NetworkStack`看门狗重启；没有应用测试通过记录。日志保存在`artifacts/reports/emulator-api35-*.log`。这是模拟器启动问题，不是已证实的应用崩溃。没有宣称忽略的硬件超时参数已生效。
-- **远端GitHub Actions结果未核验**：任务分支已推送，工作流已配置；`gh api repos/xianyu1406/test`及无认证CONNECT检查均遭环境代理403。配置草稿增加了`api.github.com`，尚需用户在环境设置保存/发布后再读取运行结果。Git推送成功不等于CI通过。
+- 当前云环境直接向`uploads.github.com`上传遇到代理403/凭据401；通过仓库内GitHub Actions的原生令牌完成了用户授权的发布，没有要求用户提供新令牌。
 - 工作流额外提供手动选择的API35/KVM instrumentation任务；其存在不构成远端运行证据。
 - **实体手机全部未验证**：真实步行/摇晃/静止和持机位置、锁屏/Doze/厂商省电、重启/权限撤销、实际音频振动、SIM/双SIM、电话送达/观察/免提。Android14+前台服务与全屏权限需额外现代设备验证。验收模板见`PLATFORM_LIMITATIONS.md`。
