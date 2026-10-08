@@ -1,0 +1,59 @@
+name: Android build and checks
+on:
+  push:
+    branches-ignore: [main, master]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  debug:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
+        with:
+          distribution: temurin
+          java-version: '21.0.9+10'
+      - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
+      - name: Install pinned Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
+      - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
+      - name: Unit tests, lint, debug APK and instrumentation APK
+        run: ./gradlew --no-daemon :core:test :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest
+      - name: Record artifact identity
+        if: success()
+        shell: bash
+        run: |
+          mkdir -p artifacts
+          printf 'Commit: %s\nPackage: cn.zhundian.app\nVersion: 0.1.0 (1)\n' "$GITHUB_SHA" > artifacts/BUILD.txt
+          sha256sum app/build/outputs/apk/debug/*.apk >> artifacts/BUILD.txt
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk >> artifacts/BUILD.txt
+          printf '\nEphemeral debug signing: updates require matching signing certificates.\n' >> artifacts/BUILD.txt
+      - name: Upload APKs and build identity
+        if: success()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: zhundian-debug-${{ github.sha }}
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/androidTest/debug/*.apk
+            artifacts/BUILD.txt
+          retention-days: 14
+          if-no-files-found: error
+      - name: Upload test and lint reports
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: android-reports-${{ github.sha }}
+          path: |
+            core/build/reports/
+            core/build/test-results/
+            app/build/reports/
+            app/build/test-results/
+          retention-days: 14
+          if-no-files-found: warn

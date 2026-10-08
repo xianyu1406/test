@@ -1,0 +1,10 @@
+<resources>
+    <string name="runtime_channel">正在进行的提醒</string>
+    <string name="runtime_channel_status">提醒状态</string>
+    <string name="runtime_preparing">正在恢复提醒状态</string>
+    <string name="runtime_open">打开提醒</string>
+    <string name="runtime_abort">紧急停止</string>
+    <string name="runtime_snooze">2分钟后再提醒</string>
+    <string name="runtime_permission">提醒未能启动，请打开应用检查权限</string>
+    <string name="runtime_alarm">准点提醒</string>
+</resources>
