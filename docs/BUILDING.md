@@ -79,3 +79,5 @@ adb shell getprop sys.boot_completed
 ```
 
 `adb devices` 出现序列号不代表系统已启动；必须确认 `sys.boot_completed=1`，并检查 instrumentation 的测试数量和结果。AOSP 镜像不含 Google Play Services，适合验证应用无 Google 服务依赖。模拟器的运动数据不能证明实际步行识别准确，也不能证明真机锁屏、Doze 或免提电话可靠。
+
+手动运行 GitHub 工作流时，可勾选 `instrumentation`。额外任务在隔离的 Ubuntu runner 上检查 KVM，启动 API35 AOSP 模拟器并运行同一组原生调度和 Compose smoke 测试，上传 `native-api35-<SHA>` 报告与设备日志。默认不启用该任务。`scripts/run-device-tests.sh` 要求系统已经启动，明确撤销 CALL_PHONE，并在失败时仍保留日志；本地使用时先 `source scripts/env.sh`，再传入与 APK 一致的 `-PbuildSha=<SHA>`。已创建工作流不代表远端测试已执行，执行证据仍以 `TEST_EVIDENCE.md` 为准。

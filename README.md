@@ -12,6 +12,8 @@
 - 真实 SensorManager、AlarmManager.setAlarmClock、闹钟音频/振动、可选中文TTS、TelecomManager.placeCall；无硬件、权限或数据时明确降级。
 - 系统文件选择器导入/导出版本化 JSON，导入前预览，导入不会恢复电话授权或补触发过期提醒。
 
+本地99项自动测试与API28系统模拟器4项测试已通过，APK已实际安装运行；[原生日历截图](docs/evidence/calendar-api28.png)。较新安卓后台策略、真实传感器与电话仍需真机验证。
+
 步行规则是**待真机校准的基线**。自动测试和模拟器不能证明真实步行准确、锁屏可靠或电话免提有效。当前实际结果见 [测试证据](docs/TEST_EVIDENCE.md)，接续工作见 [STATUS](STATUS.md)。
 
 ## 构建与安装
