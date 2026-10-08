@@ -45,7 +45,9 @@ APK 默认位置：`app/build/outputs/apk/debug/app-debug.apk`。包名 `cn.zhun
 
 ## 云端构建和源码结构
 
-GitHub Actions 在任务分支推送、PR 或手动触发时执行单元测试、lint和APK构建，上传APK及报告为工作流 artifacts；不发布 Release、不修改仓库可见性。下载：仓库 **Actions → Android build and checks → 对应运行 → Artifacts**。是否已在远端运行以测试证据为准。
+GitHub Actions 在任务分支推送、PR 或手动触发时执行单元测试、lint和APK构建，上传APK及报告为工作流 artifacts。下载：仓库 **Actions → Android build and checks → 对应运行 → Artifacts**。是否已在远端运行以测试证据为准。
+
+手动运行可选择发布 `v0.1.0` 测试版 Release；只有成功完成测试、lint和构建后才上传 APK 与构建身份。普通推送和 PR 不发布，也不修改仓库可见性。已发布的版本不自动覆盖。Release 附件使用本次 GitHub runner 的 debug 签名，可能与本地交付 APK 不同；摘要、证书和实际提交以附件 `BUILD.txt` 为准。
 
 - `core/`：可注入时间的纯Kotlin日程、会话、舒尔特、运动回放、电话资格与备份模型及测试。
 - `app/.../runtime/`：串行协调器、前台服务、系统广播与通知。

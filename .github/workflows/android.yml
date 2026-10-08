@@ -5,6 +5,10 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      publish_release:
+        description: 'Publish the existing v0.1.0 draft prerelease using this CI build (task branch only)'
+        type: boolean
+        default: false
       instrumentation:
         description: 'Run API35 emulator smoke tests (about 5–10 extra minutes; no phone calls)'
         type: boolean
@@ -23,7 +27,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
-          java-version: '21.0.9+10'
+          java-version: '21.0.9+10.0.LTS'
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
       - name: Install pinned Android SDK
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
@@ -73,7 +77,7 @@ jobs:
       - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
         with:
           distribution: temurin
-          java-version: '21.0.9+10'
+          java-version: '21.0.9+10.0.LTS'
       - uses: android-actions/setup-android@be39fa834029ff78f1a44aa3bb0819b8fc2bd8fd # v4
       - run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0' 'platform-tools'
       - uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6
@@ -105,3 +109,88 @@ jobs:
             artifacts/device/
           retention-days: 14
           if-no-files-found: warn
+
+  release:
+    # Publishing is opt-in and can only use a successful build from this repository's task branch.
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release && github.repository == 'xianyu1406/test' && github.ref == 'refs/heads/feat/zhundian-android' }}
+    needs: debug
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: zhundian-v0.1.0-release
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: v0.1.0
+      RELEASE_ID: '406650782'
+    steps:
+      - name: Download this run's verified debug build
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6
+        with:
+          name: zhundian-debug-${{ github.sha }}
+          path: ci-artifact
+      - name: Verify build identity and prepare accurate release notes
+        shell: bash
+        run: |
+          python3 - <<'PYTHON'
+          import hashlib
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+
+          downloaded = Path("ci-artifact")
+          apk = downloaded / "app/build/outputs/apk/debug/app-debug.apk"
+          identity_file = downloaded / "artifacts/BUILD.txt"
+          identity = identity_file.read_text()
+          sha = os.environ["GITHUB_SHA"]
+          assert f"Commit: {sha}\n" in identity, "Artifact commit does not match this workflow run"
+          hashes = re.findall(r"^([0-9a-f]{64})[ \t]+app/build/outputs/apk/debug/app-debug\.apk$", identity, re.MULTILINE)
+          assert len(hashes) == 1, "Missing or ambiguous APK digest in BUILD.txt"
+          assert hashlib.sha256(apk.read_bytes()).hexdigest() == hashes[0], "APK digest mismatch"
+          assert re.search(r"^Signer #1 certificate SHA-256 digest: [0-9a-f]{64}$", identity, re.MULTILINE), "Missing signing certificate identity"
+          output = Path("release-assets")
+          output.mkdir()
+          shutil.copyfile(apk, output / "zhundian-debug.apk")
+          shutil.copyfile(identity_file, output / "BUILD.txt")
+          run_url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+          notes = (
+              "准点 v0.1.0 调试预览版\n\n"
+              f"本次发布由 [GitHub Actions 构建]({run_url})，源码提交 `{sha}`。\n\n"
+              "核心单元测试、安卓单元测试、lint 和 debug 构建已通过本工作流。"
+              "附件 APK 是本次 CI 重新构建的版本，不声称与之前本地 APK 字节或签名一致。\n\n"
+              "本次发布 APK 未单独进行系统模拟器安装验证；先前同应用源码在 API28 模拟器上通过了 4 项原生测试。"
+              "真实步行、锁屏、Doze 和免提电话仍待真机验证。\n\n"
+              "安装：下载 `zhundian-debug.apk` 后侧载。此版本使用临时 debug 签名，覆盖安装要求证书一致；"
+              "如与旧版本签名不同，请先在应用内导出 JSON 备份，再卸载旧版本。\n\n"
+              "构建提交、APK SHA-256 和签名证书摘要同时保存在 `BUILD.txt`：\n\n"
+              f"```text\n{identity.rstrip()}\n```\n"
+          )
+          (output / "RELEASE_NOTES.md").write_text(notes)
+          PYTHON
+      - name: Require the existing draft and a safe tag target
+        shell: bash
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" > release.json
+          jq -e --arg tag "$RELEASE_TAG" --argjson id "$RELEASE_ID" \
+            '.id == $id and .tag_name == $tag and .draft == true' release.json > /dev/null
+          # Never overwrite assets of an already published release or move an existing tag.
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" > tag.json 2> tag-error.txt; then
+            jq -e --arg sha "$GITHUB_SHA" '.object.type == "commit" and .object.sha == $sha' tag.json > /dev/null
+          elif [[ "$(cat tag-error.txt)" != *"HTTP 404"* ]]; then
+            cat tag-error.txt >&2
+            exit 1
+          fi
+      - name: Upload this CI APK and publish the draft prerelease
+        shell: bash
+        run: |
+          gh release upload "$RELEASE_TAG" release-assets/zhundian-debug.apk release-assets/BUILD.txt \
+            --repo "$GITHUB_REPOSITORY" --clobber
+          gh release edit "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --title '准点 v0.1.0（预览版）' \
+            --notes-file release-assets/RELEASE_NOTES.md --prerelease --draft=false --latest=false
+          gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            --jq '{url: .html_url, draft: .draft, prerelease: .prerelease, target: .target_commitish}'
